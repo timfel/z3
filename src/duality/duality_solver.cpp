@@ -26,6 +26,7 @@ Revision History:
 #include <set>
 #include <map>
 #include <list>
+#include <iterator>
 
 // TODO: make these official options or get rid of them
 
