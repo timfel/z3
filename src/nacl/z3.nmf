@@ -1,0 +1,14 @@
+{
+  "files": {},
+  "program": {
+	"x86-64": {
+		"url": "z3_64.nexe"
+	},
+	"x86-32": {
+		"url": "z3_32.nexe"
+	},
+	"arm": {
+		"url": "z3_arm.nexe"
+	}
+  }
+}
