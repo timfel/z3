@@ -649,6 +649,8 @@ void hwf_manager::set_rounding_mode(mpf_rounding_mode rm)
         UNREACHABLE(); // Note: MPF_ROUND_NEAREST_TAWAY is not supported by the hardware!
     }
 #endif
+#elif defined(NACL)
+	// Do nothing
 #else // OSX/Linux
     switch (rm) {
     case MPF_ROUND_NEAREST_TEVEN:             

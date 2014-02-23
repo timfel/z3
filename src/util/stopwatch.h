@@ -123,7 +123,22 @@ public:
 	return get_seconds(); 
     }
 };
+#elif defined(NACL)
+// clock_gettime is not properly supported as of pepper v32,
+// just ignore it and provide the api stubs
+class stopwatch {
+    unsigned long long m_time;
+    bool               m_running;
 
+public:
+    stopwatch():m_time(0), m_running(false) {}
+    ~stopwatch() {}
+    void reset() {}
+    void start() {}
+    void stop() {}
+	double get_seconds() const { return 1; }
+	double get_current_seconds() const { return 1; }
+};
 
 #else // Linux 
 
