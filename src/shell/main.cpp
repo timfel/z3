@@ -281,6 +281,7 @@ char const * get_extension(char const * file_name) {
     }
 }
 
+#ifndef NACL
 int main(int argc, char ** argv) {
     try{
         unsigned return_value = 0;
@@ -351,4 +352,4 @@ int main(int argc, char ** argv) {
             return ERR_INTERNAL_FATAL;
     }
 }
-
+#endif
