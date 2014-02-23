@@ -49,7 +49,7 @@ Revision History:
 // clear to the compiler what instructions should be used. E.g., for sqrt(), the Windows compiler selects
 // the x87 FPU, even when /arch:SSE2 is on. 
 // Luckily, these are kind of standardized, at least for Windows/Linux/OSX.
-#ifdef __clang__
+#if defined(__clang__) || defined(NACL32)
 #undef USE_INTRINSICS
 #else
 #include <emmintrin.h>
