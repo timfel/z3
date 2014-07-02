@@ -18,6 +18,15 @@ Revision History:
 --*/
 
 
+#ifdef _WINDOWS
+#pragma warning(disable:4996)
+#pragma warning(disable:4800)
+#pragma warning(disable:4267)
+#pragma warning(disable:4101)
+#pragma warning(disable:4805)
+#pragma warning(disable:4800)
+#endif
+
 #include "iz3mgr.h"
 
 #include <stdio.h>
@@ -29,9 +38,7 @@ Revision History:
 #include "params.h"
 
 
-#ifndef WIN32
 using namespace stl_ext;
-#endif
 
 
 std::ostream &operator <<(std::ostream &s, const iz3mgr::ast &a){
@@ -240,6 +247,9 @@ iz3mgr::ast iz3mgr::clone(const ast &t, const std::vector<ast> &_args){
 
 
 void iz3mgr::show(ast t){
+  if(t.null()){
+    std::cout  << "(null)" << std::endl;
+  }
   params_ref p;
   p.set_bool("flat_assoc",false);
   std::cout  << mk_pp(t.raw(), m(), p) << std::endl;
@@ -684,10 +694,13 @@ void iz3mgr::linear_comb(ast &P, const ast &c, const ast &Q, bool round_off){
       throw "not an inequality";
     }
   }
-  Qrhs = make(Times,c,Qrhs);
-  bool pstrict = op(P) == Lt, strict = pstrict || qstrict;
-  if(pstrict && qstrict && round_off)
+  bool pstrict = op(P) == Lt;
+  if(qstrict && round_off && (pstrict || !(c == make_int(rational(1))))){
     Qrhs = make(Sub,Qrhs,make_int(rational(1)));
+    qstrict = false;
+  }
+  Qrhs = make(Times,c,Qrhs);
+  bool strict = pstrict || qstrict;
   if(strict)
     P = make(Lt,arg(P,0),make(Plus,arg(P,1),Qrhs));
   else
@@ -872,3 +885,14 @@ iz3mgr::ast iz3mgr::apply_quant(opr quantifier, ast var, ast e){
   std::vector<ast> bvs; bvs.push_back(var);
   return make_quant(quantifier,bvs,e);
 }
+
+#if 0
+void iz3mgr::get_bound_substitutes(stl_ext::hash_map<ast,bool> &memo, const ast &e, const ast &var, std::vector<ast> &substs){
+  std::pair<ast,bool> foo(e,false);
+  std::pair<hash_map<ast,bool>::iterator,bool> bar = memo.insert(foo);
+  if(bar.second){
+    if(op(e) == 
+  }
+ 
+}
+#endif

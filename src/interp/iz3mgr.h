@@ -126,14 +126,6 @@ namespace hash_space {
   };
 }
 
-// to make ast_r hashable in windows
-#ifdef WIN32 
-template <> inline
-size_t stdext::hash_value<ast_r >(const ast_r& s)
-{	
-  return s.raw()->get_id();
-}
-#endif
 
 // to make ast_r usable in ordered collections
 namespace std {
@@ -263,6 +255,7 @@ class iz3mgr  {
     default:;    
     }
     assert(0);
+    return 0;
   }
 
   ast arg(const ast &t, int i){
@@ -394,10 +387,13 @@ class iz3mgr  {
     return UnknownTheory;
   }
 
-  enum lemma_kind {FarkasKind,Leq2EqKind,Eq2LeqKind,GCDTestKind,AssignBoundsKind,EqPropagateKind,UnknownKind};
+  enum lemma_kind {FarkasKind,Leq2EqKind,Eq2LeqKind,GCDTestKind,AssignBoundsKind,EqPropagateKind,ArithMysteryKind,UnknownKind};
 
   lemma_kind get_theory_lemma_kind(const ast &proof){
     symb s = sym(proof);
+    if(s->get_num_parameters() < 2) {
+      return ArithMysteryKind;  // Bad -- Z3 hasn't told us
+    }
     ::symbol p0;
     bool ok = s->get_parameter(1).is_symbol(p0);
     if(!ok) return UnknownKind;

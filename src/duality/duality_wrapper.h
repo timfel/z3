@@ -182,6 +182,7 @@ namespace Duality {
       void set(char const * param, char const * value) { m_config.set(param,value); }
       void set(char const * param, bool value) { m_config.set(param,value); }
       void set(char const * param, int value) { m_config.set(param,value); }
+      config &get_config() {return m_config;}
 
       symbol str_symbol(char const * s);
       symbol int_symbol(int n);
@@ -237,11 +238,14 @@ namespace Duality {
 
       expr make_quant(decl_kind op, const std::vector<expr> &bvs, const expr &body);
       expr make_quant(decl_kind op, const std::vector<sort> &_sorts, const std::vector<symbol> &_names, const expr &body);
-
+      expr make_var(int idx, const sort &s);
 
       decl_kind get_decl_kind(const func_decl &t);
 
       sort_kind get_sort_kind(const sort &s);
+
+      expr translate(const expr &e);
+      func_decl translate(const func_decl &);
 
       void print_expr(std::ostream &s, const ast &e);
 
@@ -393,6 +397,11 @@ namespace Duality {
       
       sort array_domain() const;
       sort array_range() const;
+
+      friend std::ostream & operator<<(std::ostream & out, sort const & m){
+	m.ctx().print_expr(out,m);
+	return out;
+      }
     };
 
     
@@ -462,6 +471,16 @@ namespace Duality {
 	bool is_label (bool &pos,std::vector<symbol> &names) const ;
 	bool is_ground() const {return to_app(raw())->is_ground();}
 	bool has_quantifiers() const {return to_app(raw())->has_quantifiers();}
+	bool has_free(int idx) const {
+	  used_vars proc;
+	  proc.process(to_expr(raw()));
+	  return proc.contains(idx);
+	}
+	unsigned get_max_var_idx_plus_1() const {
+	  used_vars proc;
+	  proc.process(to_expr(raw()));
+	  return proc.get_max_found_var_idx_plus_1();
+	}
 
         // operator Z3_app() const { assert(is_app()); return reinterpret_cast<Z3_app>(m_ast); }
         func_decl decl() const {return func_decl(ctx(),to_app(raw())->get_decl());}
@@ -568,6 +587,8 @@ namespace Duality {
 	friend expr clone_quantifier(const expr &, const expr &);
 
         friend expr clone_quantifier(const expr &q, const expr &b, const std::vector<expr> &patterns);
+
+	friend expr clone_quantifier(decl_kind, const expr &, const expr &);
 
         friend std::ostream & operator<<(std::ostream & out, expr const & m){
 	  m.ctx().print_expr(out,m);
@@ -818,6 +839,7 @@ namespace Duality {
         model the_model;
 	bool canceled;
 	proof_gen_mode m_mode;
+	bool extensional;
     public:
         solver(context & c, bool extensional = false, bool models = true);
         solver(context & c, ::solver *s):object(c),the_model(c) { m_solver = s; canceled = false;}
@@ -921,6 +943,7 @@ namespace Duality {
 	unsigned get_scope_level(){ scoped_proof_mode spm(m(),m_mode); return m_solver->get_scope_level();}
 
 	void show();
+	void print(const char *filename);
 	void show_assertion_ids();
 
 	proof get_proof(){
@@ -928,6 +951,7 @@ namespace Duality {
 	  return proof(ctx(),m_solver->get_proof());
 	}
 
+	bool extensional_array_theory() {return extensional;}
     };
 
 #if 0
@@ -1370,6 +1394,20 @@ namespace Duality {
       return to_expr(a.raw());
     }
 
+    inline expr context::translate(const expr &e) {
+      ::expr *f = to_expr(e.raw());
+      if(&e.ctx().m() != &m()) // same ast manager -> no translation
+	throw "ast manager mismatch";
+      return cook(f);
+    }
+
+    inline func_decl context::translate(const func_decl &e) {
+      ::func_decl *f = to_func_decl(e.raw());
+      if(&e.ctx().m() != &m()) // same ast manager -> no translation
+	throw "ast manager mismatch";
+      return func_decl(*this,f);
+    }
+
     typedef double clock_t;
     clock_t current_time();
     inline void output_time(std::ostream &os, clock_t time){os << time;}
@@ -1401,14 +1439,6 @@ namespace hash_space {
   };
 }
 
-// to make Duality::ast hashable in windows
-#ifdef WIN32 
-template <> inline
-size_t stdext::hash_value<Duality::ast >(const Duality::ast& s)
-{	
-  return s.raw()->get_id();
-}
-#endif
 
 // to make Duality::ast usable in ordered collections
 namespace std {
@@ -1445,14 +1475,6 @@ namespace hash_space {
   };
 }
 
-// to make Duality::func_decl hashable in windows
-#ifdef WIN32 
-template <> inline
-size_t stdext::hash_value<Duality::func_decl >(const Duality::func_decl& s)
-{	
-  return s.raw()->get_id();
-}
-#endif
 
 // to make Duality::func_decl usable in ordered collections
 namespace std {
@@ -1465,7 +1487,6 @@ namespace std {
     }
   };
 }
-
 
 #endif
 
