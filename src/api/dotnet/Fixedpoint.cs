@@ -305,6 +305,20 @@ namespace Microsoft.Z3
             }
         }
 
+        /// <summary>
+        /// Fixedpoint statistics.
+        /// </summary>
+        public Statistics Statistics
+        {
+            get
+            {
+                Contract.Ensures(Contract.Result<Statistics>() != null);
+
+                return new Statistics(Context, Native.Z3_fixedpoint_get_statistics(Context.nCtx, NativeObject));
+            }
+        }
+
+
 
         #region Internal
         internal Fixedpoint(Context ctx, IntPtr obj)

@@ -37,7 +37,7 @@ Revision History:
 #include"smt_model_generator.h"
 #include"numeral_factory.h"
 #include"smt_clause.h"
-
+#include"theory_opt.h"
 
 // The DL theory can represent term such as n + k, where n is an enode and k is a numeral.
 namespace smt {
@@ -59,7 +59,7 @@ namespace smt {
     };
 
     template<typename Ext>
-    class theory_diff_logic : public theory, private Ext {
+    class theory_diff_logic : public theory, public theory_opt, private Ext {
         
         typedef typename Ext::numeral numeral;
 
@@ -158,17 +158,20 @@ namespace smt {
             unsigned      m_asserted_atoms_lim;
             unsigned      m_asserted_qhead_old;
         };
+        typedef dl_graph<GExt> Graph;
 
         smt_params &                   m_params;
         arith_util                     m_util;
         arith_eq_adapter               m_arith_eq_adapter;
         theory_diff_logic_statistics   m_stats;
-        dl_graph<GExt>                 m_graph;
-        theory_var                     m_zero_int; // cache the variable representing the zero variable.
-        theory_var                     m_zero_real; // cache the variable representing the zero variable.
+        Graph                          m_graph;
+        theory_var                     m_zero; // cache the variable representing the zero variable.
         int_vector                     m_scc_id;                  // Cheap equality propagation
         eq_prop_info_set               m_eq_prop_info_set;        // set of existing equality prop infos
         ptr_vector<eq_prop_info>       m_eq_prop_infos;
+
+        app_ref_vector                 m_terms;
+        svector<bool>                  m_signs;
 
         ptr_vector<atom>               m_atoms;
         ptr_vector<atom>               m_asserted_atoms;   // set of asserted atoms
@@ -184,7 +187,13 @@ namespace smt {
 
         arith_factory *                m_factory;
         rational                       m_delta;
-        nc_functor                     m_nc_functor;        
+        nc_functor                     m_nc_functor;   
+
+        // For optimization purpose
+        typedef vector <std::pair<theory_var, rational> > objective_term;
+        vector<objective_term>         m_objectives;
+        vector<rational>               m_objective_consts;
+        vector<expr_ref_vector>        m_objective_assignments;
 
         // Set a conflict due to a negative cycle.
         void set_neg_cycle_conflict();
@@ -210,8 +219,8 @@ namespace smt {
             m_params(params),
             m_util(m),
             m_arith_eq_adapter(*this, params, m_util),
-            m_zero_int(null_theory_var),
-            m_zero_real(null_theory_var),
+            m_zero(null_theory_var),
+            m_terms(m),
             m_asserted_qhead(0),
             m_num_core_conflicts(0),
             m_num_propagation_calls(0),
@@ -296,11 +305,31 @@ namespace smt {
         
         virtual void collect_statistics(::statistics & st) const;
 
-    private:        
+        
+        // -----------------------------------
+        //
+        // Optimization
+        //
+        // -----------------------------------
+
+        virtual inf_eps_rational<inf_rational> maximize(theory_var v, expr_ref& blocker);
+        virtual theory_var add_objective(app* term);
+        virtual expr_ref mk_gt(theory_var v, inf_rational const& val);
+        virtual expr* mk_ge(theory_var v, inf_rational const& val) { return 0; }
+
+        bool internalize_objective(expr * n, rational const& m, rational& r, objective_term & objective);
+
+    private:     
+
+        expr_ref block_objective(theory_var v, inf_rational const& val);
 
         virtual void new_eq_eh(theory_var v1, theory_var v2, justification& j);
 
         virtual void new_diseq_eh(theory_var v1, theory_var v2, justification& j);
+
+        bool decompose_linear(app_ref_vector& args, svector<bool>& signs);
+
+        bool is_sign(expr* n, bool& sign);
 
         bool is_negative(app* n, app*& m);
 
@@ -336,9 +365,7 @@ namespace smt {
 
         void get_implied_bound_antecedents(edge_id bridge_edge, edge_id subsumed_edge, conflict_resolution & cr);
 
-        theory_var get_zero(sort* s) const { return m_util.is_int(s)?m_zero_int:m_zero_real; }
-
-        theory_var get_zero(expr* e) const { return get_zero(get_manager().get_sort(e)); }
+        theory_var get_zero() const { return m_zero; }
 
         void inc_conflicts();
 
@@ -348,6 +375,7 @@ namespace smt {
         // TODO: It doesn't need to be a rational, but a bignum integer.
         static const bool m_int_theory = true;
         typedef rational numeral;
+        typedef rational fin_numeral;
         numeral     m_epsilon;
         idl_ext() : m_epsilon(1) {}
     };
@@ -356,6 +384,7 @@ namespace smt {
         // TODO: It doesn't need to be a rational, but a bignum integer.
         static const bool m_int_theory = true;
         typedef s_integer numeral;
+        typedef s_integer fin_numeral;
         numeral m_epsilon;
         sidl_ext() : m_epsilon(1) {}
     };
@@ -363,17 +392,18 @@ namespace smt {
     struct rdl_ext {
         static const bool m_int_theory = false;
         typedef inf_int_rational numeral;
-        numeral      m_epsilon;
+        typedef rational fin_numeral;
+        numeral      m_epsilon;        
         rdl_ext() : m_epsilon(rational(), true) {}
     };
 
     struct srdl_ext {
         static const bool m_int_theory = false;
         typedef inf_s_integer numeral;
+        typedef s_integer fin_numeral;
         numeral m_epsilon;
         srdl_ext() : m_epsilon(s_integer(0),true) {}
     };
-
 
     typedef theory_diff_logic<idl_ext>  theory_idl;
     typedef theory_diff_logic<sidl_ext> theory_fidl;

@@ -199,6 +199,9 @@ namespace smt {
     bool context::bcp() {
         SASSERT(!inconsistent());
         while (m_qhead < m_assigned_literals.size()) {
+            if (m_cancel_flag) {
+                return true;
+            }
             literal l      = m_assigned_literals[m_qhead];
             SASSERT(get_assignment(l) == l_true);
             m_qhead++;
@@ -224,9 +227,6 @@ namespace smt {
                         break;
                     case l_true:
                         break;
-                    }
-                    if (m_cancel_flag) {
-                        return true;
                     }
                 }
             }
@@ -1334,6 +1334,7 @@ namespace smt {
         TRACE("propagate_bool_var_enode_bug", tout << "var: " << v << " #" << bool_var2expr(v)->get_id() << "\n";);
         SASSERT(v < static_cast<int>(m_b_internalized_stack.size()));
         enode * n  = bool_var2enode(v);
+        CTRACE("mk_bool_var", !n, tout << "No enode for " << v << "\n";);
         bool sign  = val == l_false;
         if (n->merge_tf())
             add_eq(n, sign ? m_false_enode : m_true_enode, eq_justification(literal(v, sign)));
@@ -2950,7 +2951,7 @@ namespace smt {
        \brief Execute some finalization code after performing the search.
     */
     void context::check_finalize(lbool r) {
-        TRACE("after_search", display(tout););
+        TRACE("after_search", display(tout << "result: " << r << "\n"););
         display_profile(verbose_stream());
     }
 
@@ -3237,7 +3238,7 @@ namespace smt {
                 for (; it != end; ++it)
                     (*it)->restart_eh();
                 TRACE("mbqi_bug_detail", tout << "before instantiating quantifiers...\n";); 
-                m_qmanager->restart_eh();
+                m_qmanager->restart_eh();                
             }
             if (m_fparams.m_simplify_clauses)
                 simplify_clauses();
@@ -3935,6 +3936,11 @@ namespace smt {
         if (th == 0)
             return false;
         return th->get_value(n, value);
+    }
+
+    void context::update_model() {
+        mk_proto_model(l_true);
+        m_model = m_proto_model->mk_model();
     }
 
     void context::mk_proto_model(lbool r) {

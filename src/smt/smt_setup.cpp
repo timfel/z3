@@ -30,6 +30,7 @@ Revision History:
 #include"theory_dummy.h"
 #include"theory_dl.h"
 #include"theory_seq_empty.h"
+#include"theory_pb.h"
 
 namespace smt {
 
@@ -350,10 +351,15 @@ namespace smt {
         else if (!m_params.m_arith_auto_config_simplex && is_dense(st)) {
             TRACE("setup", tout << "using dense diff logic...\n";);
             m_params.m_phase_selection = PS_CACHING_CONSERVATIVE;
+#if 0
+            m_context.register_plugin(alloc(smt::theory_idl, m_manager, m_params));
+#else
             if (st.m_arith_k_sum < rational(INT_MAX / 8))
                 m_context.register_plugin(alloc(smt::theory_dense_si, m_manager, m_params));
             else
                 m_context.register_plugin(alloc(smt::theory_dense_i, m_manager, m_params));
+#endif
+
         }
         else {
             // if (st.m_arith_k_sum < rational(INT_MAX / 8)) {
@@ -730,6 +736,9 @@ namespace smt {
             else
                 m_context.register_plugin(alloc(smt::theory_rutvpi, m_manager));          
             break;
+        case AS_OPTINF:
+            m_context.register_plugin(alloc(smt::theory_inf_arith, m_manager, m_params));            
+            break;
         default:
             if (m_params.m_arith_int_only)
                 m_context.register_plugin(alloc(smt::theory_i_arith, m_manager, m_params));
@@ -780,6 +789,10 @@ namespace smt {
         m_context.register_plugin(alloc(theory_seq_empty, m_manager));
     }
 
+    void setup::setup_card() {
+        m_context.register_plugin(alloc(theory_pb, m_manager, m_params));
+    }
+
     void setup::setup_unknown() {
         setup_arith();
         setup_arrays();
@@ -787,6 +800,7 @@ namespace smt {
         setup_datatypes();
         setup_dl();
         setup_seq();
+        setup_card();
     }
 
     void setup::setup_unknown(static_features & st) {

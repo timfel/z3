@@ -348,13 +348,24 @@ namespace smt {
         context & ctx   = get_context();
         simplifier & s  = ctx.get_simplifier();
         expr_ref s_ante(m), s_conseq(m);
+        expr* s_conseq_n, * s_ante_n;
+        bool negated;
         proof_ref pr(m);
+
         s(ante, s_ante, pr);
+        negated = m.is_not(s_ante, s_ante_n);
+        if (negated) s_ante = s_ante_n;
         ctx.internalize(s_ante, false);
         literal l_ante = ctx.get_literal(s_ante);
+        if (negated) l_ante.neg();
+
         s(conseq, s_conseq, pr);
+        negated = m.is_not(s_conseq, s_conseq_n);
+        if (negated) s_conseq = s_conseq_n;
         ctx.internalize(s_conseq, false);
         literal l_conseq = ctx.get_literal(s_conseq);
+        if (negated) l_conseq.neg();
+
         literal lits[2] = {l_ante, l_conseq};
         ctx.mk_th_axiom(get_id(), 2, lits);
         if (ctx.relevancy()) {
@@ -801,7 +812,7 @@ namespace smt {
     void theory_arith<Ext>::mk_bound_axioms(atom * a1) {
         theory_var v = a1->get_var();
         literal   l1(a1->get_bool_var()); 
-        numeral const & k1(a1->get_k());
+        inf_numeral const & k1(a1->get_k());
         atom_kind kind1 = a1->get_atom_kind();
         TRACE("mk_bound_axioms", tout << "making bound axioms for v" << v << " " << kind1 << " " << k1 << "\n";);
         atoms & occs = m_var_occs[v];
@@ -810,7 +821,7 @@ namespace smt {
         for (; it != end; ++it) {
             atom * a2 = *it;
             literal l2(a2->get_bool_var());
-            numeral const & k2 = a2->get_k();
+            inf_numeral const & k2 = a2->get_k();
             atom_kind kind2    = a2->get_atom_kind();
             SASSERT(k1 != k2 || kind1 != kind2);
             SASSERT(a2->get_var() == v);
@@ -879,8 +890,8 @@ namespace smt {
         bool_var bv    = ctx.mk_bool_var(n);
         ctx.set_var_theory(bv, get_id());
         rational _k;
-        m_util.is_numeral(rhs, _k);
-        numeral   k(_k);
+        VERIFY(m_util.is_numeral(rhs, _k));
+        inf_numeral   k(_k);
         atom * a = alloc(atom, bv, v, k, kind);
         mk_bound_axioms(a);
         m_unassigned_atoms[v]++;
@@ -927,6 +938,7 @@ namespace smt {
     
     template<typename Ext>
     void theory_arith<Ext>::assign_eh(bool_var v, bool is_true) {
+        TRACE("arith", tout << "v" << v << " " << is_true << "\n";);
         atom * a = get_bv2a(v);
         if (!a) return;
         SASSERT(get_context().get_assignment(a->get_bool_var()) != l_undef);
@@ -1314,7 +1326,8 @@ namespace smt {
         m_assume_eq_head(0),
         m_nl_rounds(0),
         m_nl_gb_exhausted(false),
-        m_nl_new_exprs(m) {
+        m_nl_new_exprs(m),
+        m_bound_watch(null_bool_var) {
     }
 
     template<typename Ext>
@@ -1979,7 +1992,7 @@ namespace smt {
               tout << "is_below_lower: " << below_lower(x_i) << ", is_above_upper: " << above_upper(x_i) << "\n";);
         antecedents& ante = get_antecedents();
         explain_bound(r, idx, !is_below, delta, ante);
-        b->push_justification(ante, numeral(1), proofs_enabled());
+        b->push_justification(ante, numeral(1), coeffs_enabled());
        
 
         set_conflict(ante.lits().size(), ante.lits().c_ptr(), 
@@ -2122,8 +2135,8 @@ namespace smt {
     void theory_arith<Ext>::sign_bound_conflict(bound * b1, bound * b2) {
         SASSERT(b1->get_var() == b2->get_var());
         antecedents& ante = get_antecedents();
-        b1->push_justification(ante, numeral(1), proofs_enabled());
-        b2->push_justification(ante, numeral(1), proofs_enabled());
+        b1->push_justification(ante, numeral(1), coeffs_enabled());
+        b2->push_justification(ante, numeral(1), coeffs_enabled());
 
         set_conflict(ante.lits().size(), ante.lits().c_ptr(), ante.eqs().size(), ante.eqs().c_ptr(), ante, is_int(b1->get_var()), "farkas");
         TRACE("arith_conflict", tout << "bound conflict\n";);
@@ -2382,7 +2395,7 @@ namespace smt {
                 if (!b->has_justification())
                     continue;
                 if (!relax_bounds() || delta.is_zero()) {
-                    b->push_justification(ante, it->m_coeff, proofs_enabled());
+                    b->push_justification(ante, it->m_coeff, coeffs_enabled());
                     continue;
                 }
                 numeral coeff = it->m_coeff;
@@ -2421,6 +2434,8 @@ namespace smt {
                     if (val == l_undef)
                         continue;
                     // TODO: check if the following line is a bottleneck
+                    TRACE("arith", tout << "v" << a->get_bool_var() << " " << (val == l_true) << "\n";);
+
                     a->assign_eh(val == l_true, get_epsilon(a->get_var()));
                     if (val != l_undef && a->get_bound_kind() == b->get_bound_kind()) {
                         SASSERT((ctx.get_assignment(bv) == l_true) == a->is_true());
@@ -2442,7 +2457,7 @@ namespace smt {
                 SASSERT(!is_b_lower || k_2 <= k_1);
                 SASSERT(is_b_lower  || k_2 >= k_1);
                 if (new_atom == 0) {
-                    b->push_justification(ante, coeff, proofs_enabled());
+                    b->push_justification(ante, coeff, coeffs_enabled());
                     continue;
                 }
                 SASSERT(!is_b_lower || k_2 < k_1);
@@ -2456,7 +2471,7 @@ namespace smt {
                     delta -= coeff*(k_2 - k_1);
                 }
                 TRACE("propagate_bounds", tout << "delta (after replace): " << delta << "\n";);
-                new_atom->push_justification(ante, coeff, proofs_enabled());
+                new_atom->push_justification(ante, coeff, coeffs_enabled());
                 SASSERT(delta >= inf_numeral::zero());
             }
         }
@@ -2475,7 +2490,7 @@ namespace smt {
             bool_var bv = a->get_bool_var();
             literal  l(bv);
             if (get_context().get_assignment(bv) == l_undef) {
-                numeral const & k2 = a->get_k();
+                inf_numeral const & k2 = a->get_k();
                 delta.reset();
                 if (a->get_atom_kind() == A_LOWER) {
                     // v >= k  k >= k2  |-  v >= k2
@@ -2656,13 +2671,13 @@ namespace smt {
               for (unsigned i = 0; i < num_literals; i++) {
                   ctx.display_detailed_literal(tout, lits[i]);
                   tout << " ";
-                  if (proofs_enabled()) {
+                  if (coeffs_enabled()) {
                       tout << "bound: " << bounds.lit_coeffs()[i] << "\n";
                   }
               }
               for (unsigned i = 0; i < num_eqs; i++) {
                   tout << "#" << eqs[i].first->get_owner_id() << "=#" << eqs[i].second->get_owner_id() << " ";
-                  if (proofs_enabled()) {
+                  if (coeffs_enabled()) {
                       tout << "bound: " << bounds.eq_coeffs()[i] << "\n";
                   }
               }
@@ -2670,6 +2685,7 @@ namespace smt {
                   tout << bounds.params(proof_rule)[i] << "\n";
               }
               tout << "\n";);
+        record_conflict(num_literals, lits, num_eqs, eqs, bounds.num_params(), bounds.params(proof_rule));
         ctx.set_conflict(
             ctx.mk_justification(
                 ext_theory_conflict_justification(get_id(), r, num_literals, lits, num_eqs, eqs, 
@@ -2686,8 +2702,8 @@ namespace smt {
         typename vector<row_entry>::const_iterator end = r.end_entries();
         for (; it != end; ++it) {
             if (!it->is_dead() && is_fixed(it->m_var)) {
-                lower(it->m_var)->push_justification(antecedents, it->m_coeff, proofs_enabled());
-                upper(it->m_var)->push_justification(antecedents, it->m_coeff, proofs_enabled());                
+                lower(it->m_var)->push_justification(antecedents, it->m_coeff, coeffs_enabled());
+                upper(it->m_var)->push_justification(antecedents, it->m_coeff, coeffs_enabled());                
             }
         }
     }
@@ -2789,6 +2805,9 @@ namespace smt {
                 if (is_int(v))
                     continue;
                 inf_numeral const & val = get_value(v);
+                if (Ext::is_infinite(val)) {
+                    continue;
+                }
                 rational value = val.get_rational().to_rational() + m_epsilon.to_rational() * val.get_infinitesimal().to_rational();
                 theory_var v2;
                 if (mapping.find(value, v2)) {

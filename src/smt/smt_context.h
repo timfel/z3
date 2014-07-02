@@ -332,6 +332,10 @@ namespace smt {
             return get_assignment(literal(v));
         }
 
+        literal_vector const & assigned_literals() const { 
+            return m_assigned_literals; 
+        }
+
         lbool get_assignment(expr * n) const;
 
         // Similar to get_assignment, but returns l_undef if n is not internalized.
@@ -1385,6 +1389,8 @@ namespace smt {
         }
         
         void get_model(model_ref & m) const;
+
+        void update_model();
 
         void get_proto_model(proto_model_ref & m) const;
         
