@@ -142,6 +142,8 @@ struct scoped_timer::imp {
             throw default_exception("failed to initialize timer thread attributes");
         if (pthread_create(&m_thread_id, &m_attributes, &thread_func, this) != 0)
             throw default_exception("failed to start timer thread");
+#elif defined(EMSCRIPTEN)
+	// nothing
 #else
 	// Linux version
         if (omp_in_parallel()) {
@@ -187,6 +189,8 @@ struct scoped_timer::imp {
             throw default_exception("failed to join thread");
         if (pthread_attr_destroy(&m_attributes) != 0)
             throw default_exception("failed to destroy pthread attributes object");
+#elif defined(EMSCRIPTEN)
+	// nothing
 #else
 	// Linux version
         if (omp_in_parallel())

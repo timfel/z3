@@ -35,6 +35,10 @@ Revision History:
 #define USE_INTRINSICS
 #endif
 
+#ifdef EMSCRIPTEN
+#undef USE_INTRINSICS
+#endif
+
 #include<sstream>
 
 #include"hwf.h"
@@ -593,6 +597,8 @@ void hwf_manager::mk_ninf(hwf & o) {
     #define SETRM(RM) __control87_2(RM, _MCW_RC, &x86_state, &sse2_state)
   #endif
 #endif
+#elif defined(EMSCRIPTEN)
+  #define SETRM(RM) void
 #else
   #define SETRM(RM) fesetround(RM)
 #endif
