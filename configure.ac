@@ -83,7 +83,7 @@ fi
 ###################
 # Sets CXX
 AC_LANG([C++])
-AC_PROG_CXX(g++ clang++ false)
+AC_PROG_CXX(g++ em++ false)
 AC_PROG_CC
 if test $CXX = "false"; then
    AC_MSG_ERROR([C++ compiler was not found])
@@ -107,8 +107,8 @@ AS_IF([test "$CXX" = "g++"], [
    # Use -mfpmath=sse
    CXXFLAGS+=" -mfpmath=sse"
 ],
-      [test "$CXX" = "clang++"], [
-   # OpenMP is not supported in clang++
+      [test "$CXX" = "em++"], [
+   # OpenMP is not supported in em++
    CXXFLAGS+=" -D _NO_OMP_"  
 ],
 [
@@ -139,8 +139,8 @@ AS_IF([test "$host_os" = "Darwin"], [
   COMP_VERSIONS=
   STATIC_FLAGS=-static
   CXXFLAGS+=" -fno-strict-aliasing"
-  if test "$CXX" = "clang++"; then
-     # More flags for clang++ for Linux
+  if test "$CXX" = "em++"; then
+     # More flags for em++ for Linux
      CXXFLAGS+=" -Wno-unknown-pragmas -Wno-overloaded-virtual -Wno-unused-value"
   fi
   SLIBEXTRAFLAGS+=" -lrt"
